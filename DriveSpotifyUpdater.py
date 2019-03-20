@@ -6,14 +6,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import spotipy
 import spotipy.util as util
+import json
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
 
 def main():
-    """Shows basic usage of the Drive v3 API.
-    Prints the names and ids of the first 10 files the user has access to.
-    """
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -38,17 +36,23 @@ def main():
     # Call the Drive v3 API
     # 0B7wQpwvNx4sTUVZKMFFIVFByakE is the Drive id for the 'Guitar' folder
     # pageSize 1000 to get all of the documents
-    results = service.files().list(q="'0B7wQpwvNx4sTUVZKMFFIVFByakE' in parents", pageSize = 1000).execute()
+    query = "'0B7wQpwvNx4sTUVZKMFFIVFByakE' in parents"
+    results = service.files().list(q=query, pageSize=1000, orderBy='modifiedTime desc').execute()
     items = results.get('files', [])
 
     songs = [i['name'] for i in items]
-    songs = list(filter(lambda x: ('DRAFT' and 'HOLIDAY' and 'Copy') not in x, songs))
+    filter_out = ['HOLIDAY', 'TEMPLATE', 'Copy']
+    songs = list(filter(lambda x: not any(f in x for f in filter_out), songs))
     song_uris = []
 
-    username = '%23oxfordcomma'
+    spotify_creds = json.load(open('spotify_credentials.json'))['credentials']
+    username = spotify_creds['username']
+    client_id = spotify_creds['client_id']
+    client_secret = spotify_creds['client_secret']
+    redirect_uri = spotify_creds['redirect_uri']
     scope = 'playlist-modify-private'
-    token = util.prompt_for_user_token(username, scope, client_id='837bf722fa9d48cf930a5c9dc70c9de0',
-                               client_secret='7e977f199a594527b752e2a1ecebef98', redirect_uri='http://localhost:8888/callback')
+    token = util.prompt_for_user_token(username, scope, client_id, client_secret, redirect_uri)
+
     playlist_uri = '3DsWreismzG8iHjgVQrEyp'
 
     if token:
@@ -58,9 +62,9 @@ def main():
         current_tracks_in_playlist = [i['track']['uri'] for i in sp.user_playlist_tracks(username, playlist_uri)['items'] if i]
 
         for song in songs:
-            search_result = sp.search(song.replace(' -', ''))
+            search_result = sp.search(song.replace(' -', '').replace('[DRAFT]', ''))
             if len(search_result['tracks']['items']) == 0:
-                print(song + ' is missing?')
+                print(song + ' not found in Spotify search.')
 
             else:
                 song_uri = search_result['tracks']['items'][0]['uri']
@@ -68,8 +72,10 @@ def main():
                     song_uris.append(song_uri)
             print(song)
 
-        results = sp.user_playlist_add_tracks(username, playlist_uri, song_uris)
-        print(results)
+        counter = 0
+        while counter < len(song_uris):
+            spotify_results = sp.user_playlist_add_tracks(username, playlist_uri, song_uris[counter:counter+100])
+            counter += 100
     else:
         print("Can't get token for", username)
 

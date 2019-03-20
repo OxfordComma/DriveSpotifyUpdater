@@ -11,6 +11,8 @@ import json
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
 
+
+
 def main():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
@@ -36,7 +38,10 @@ def main():
     # Call the Drive v3 API
     # 0B7wQpwvNx4sTUVZKMFFIVFByakE is the Drive id for the 'Guitar' folder
     # pageSize 1000 to get all of the documents
-    query = "'0B7wQpwvNx4sTUVZKMFFIVFByakE' in parents"
+    drive_args = json.load(open('drive_arguments.json'))['arguments']
+    query = drive_args['query']
+    playlist_uri = drive_args['playlist_uri']
+
     results = service.files().list(q=query, pageSize=1000, orderBy='modifiedTime desc').execute()
     items = results.get('files', [])
 
@@ -52,8 +57,6 @@ def main():
     redirect_uri = spotify_creds['redirect_uri']
     scope = 'playlist-modify-private'
     token = util.prompt_for_user_token(username, scope, client_id, client_secret, redirect_uri)
-
-    playlist_uri = '3DsWreismzG8iHjgVQrEyp'
 
     if token:
         sp = spotipy.Spotify(auth=token)
